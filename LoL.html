@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>REFLEX RIFT</title>
+<style>
+html,body{margin:0;padding:0;background:#0b0e14;color:#e6e6eb;font-family:system-ui,Segoe UI,Roboto,Arial}
+canvas{display:block;margin:0 auto;background:#0b0e14;cursor:crosshair}
+#ui{position:fixed;top:10px;left:10px;font-size:14px;line-height:1.4}
+#overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.65)}
+#timer{position:fixed;top:10px;left:50%;transform:translateX(-50%);font-size:16px;font-weight:700;color:#aab3c8}
+#ui{left:12px} 
+#panel{background:#121826;border-radius:10px;padding:20px 24px;min-width:320px;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+#panel h1{margin:0 0 10px 0;font-size:22px}
+#panel .stats{font-size:14px}
+#panel button{margin-top:14px;padding:10px 14px;border-radius:8px;border:0;background:#7cffc4;color:#062b1c;font-weight:700;cursor:pointer}
+#toast{position:fixed;top:16px;right:16px;pointer-events:none}
+.toast{background:#121826;border:1px solid #1e2640;border-radius:8px;padding:8px 12px;margin-bottom:8px;animation:pop .8s ease-out}
+@keyframes pop{0%{transform:scale(.9);opacity:0}100%{transform:scale(1);opacity:1}}
+  /* Menu, leaderboard & settings */
+  #menuHeader{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .menuTitle{font-size:20px;font-weight:800}
+  .menuButtons{display:flex;gap:8px}
+  .menuButton{padding:8px 12px;border-radius:8px;border:0;background:#7cffc4;color:#062b1c;font-weight:700;cursor:pointer}
+  #leaderboardList{max-height:200px;overflow:auto;padding-left:18px;margin:8px 0}
+  .settingsRow{display:flex;align-items:center;gap:8px;margin-top:8px}
+  #nameInput{width:100%;padding:6px;border-radius:6px;border:1px solid #1e2640;background:#0b0e14;color:#e6e6eb}
+
+  /* Modern menu styles */
+  .menu-card{display:flex;flex-direction:column;align-items:center;gap:12px;padding:34px 44px;border-radius:12px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.02));box-shadow:0 18px 40px rgba(0,0,0,0.6);min-width:380px}
+  .menu-title{font-size:28px;font-weight:900;letter-spacing:1px}
+  .menu-sub{color:#aab3c8;font-size:13px;margin-bottom:6px}
+  .bigBtn{padding:14px 22px;border-radius:10px;border:0;background:#7cffc4;color:#062b1c;font-weight:800;font-size:18px;cursor:pointer;box-shadow:0 8px 20px rgba(0,0,0,0.35)}
+  .smallBtns{display:flex;gap:10px}
+  .menuButton:hover,.bigBtn:hover{transform:translateY(-3px);filter:brightness(1.04)}
+  #overlay{backdrop-filter: blur(6px);}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <div>Score: <span id="score">0</span></div>
+</div>
+<div id="timer">0.00</div>
+<div id="toast"></div> 
+<div id="overlay">
+  <div id="panel">
+    <div id="menuView" class="view">
+      <div class="menu-card">
+        <div class="menu-title">Dink Dodge</div>
+        <div class="menu-sub">A relaxing reflex dodger. Click Start to play</div>
+        <button class="bigBtn menuButton" id="startBtn">Start</button>
+        <div class="smallBtns">
+          <button class="menuButton" id="showLeaderboard">Leaderboard</button>
+          <button class="menuButton" id="showSettings">Settings</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+          <label>Hard Mode</label>
+          <button class="menuButton" id="toggleHard">Off</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="leaderboardView" class="view" style="display:none">
+      <h1>Leaderboard</h1>
+      <ol id="leaderboardList"></ol>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="menuButton" id="backFromLeaderboard">Back</button>
+        <button class="menuButton" id="clearLeaderboard">Clear</button>
+      </div>
+    </div>
+
+    <div id="settingsView" class="view" style="display:none">
+      <h1>Settings</h1>
+      <div class="settingsRow">
+        <label>Music</label>
+        <button class="menuButton" id="toggleMusic">Toggle</button>
+      </div>
+      <div class="settingsRow">
+        <label>Music Volume</label>
+        <input id="musicVol" type="range" min="0" max="1" step="0.01" value="0.15">
+      </div>
+      <div class="settingsRow">
+        <label>Your name</label>
+        <input id="nameInput" placeholder="Player" />
+      </div>
+      <div class="settingsRow">
+        <label>Menu Background URL</label>
+        <input id="menuBg" placeholder="https://.../image.png" />
+      </div>
+      <div class="settingsRow">
+        <label>Cursor Style</label>
+        <select id="cursorChoice">
+          <option value="classic">Classic</option>
+          <option value="new">New</option>
+        </select>
+      </div>
+      <div class="settingsRow">
+        <label>Cursor Size</label>
+        <input id="cursorSize" type="range" min="12" max="48" step="1" value="32" />
+      </div>
+      <div class="settingsRow">
+        <label>Preview</label>
+        <div id="cursorPreview" style="width:40px;height:40px;border-radius:6px;background:#081018;display:flex;align-items:center;justify-content:center"></div>
+      </div>
+      <div class="settingsRow">
+        <label>SFX Volume</label>
+        <input id="sfxVol" type="range" min="0" max="1" step="0.01" value="0.18">
+      </div>
+      <div style="margin-top:10px">
+        <button class="menuButton" id="saveSettings">Save</button>
+      </div>
+    </div>
+
+    <div id="pauseView" class="view" style="display:none">
+      <h1>Paused</h1>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button id="resumeBtn" class="menuButton">Resume</button>
+        <button id="returnMainBtn" class="menuButton">Return to Main Menu</button>
+        <button id="showSettingsPause" class="menuButton">Settings</button>
+      </div>
+    </div>
+
+    <div id="endView" class="view" style="display:none">
+      <h1>Run Complete</h1>
+      <div class="stats" id="stats"></div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button id="restart" class="menuButton">One More Run</button>
+        <button id="toLeaderboard" class="menuButton">View Leaderboard</button>
+      </div>
+    </div> 
+
+  </div>
+</div> 
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const DPR = Math.min(2, window.devicePixelRatio||1);
+function resize(){
+  canvas.width = innerWidth*DPR;
+  canvas.height = innerHeight*DPR;
+  canvas.style.width = innerWidth+'px';
+  canvas.style.height = innerHeight+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+addEventListener('resize', resize); resize();
+
+const audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+function beep(freq=600,dur=.08,type='sine',gain=.06){
+  const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+  o.type=type;o.frequency.value=freq;g.gain.value=gain;
+  o.connect(g).connect(audioCtx.destination);
+  o.start(); o.stop(audioCtx.currentTime+dur);
+}
+function swoosh(){
+  const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+  o.type='triangle';o.frequency.setValueAtTime(1200,audioCtx.currentTime);
+  o.frequency.exponentialRampToValueAtTime(200,audioCtx.currentTime+.15);
+  g.gain.value=.05;
+  o.connect(g).connect(audioCtx.destination);
+  o.start();o.stop(audioCtx.currentTime+.15);
+  try{ if(gunBuf){ if(audioCtx.state==='suspended') audioCtx.resume().then(()=>playSfx(gunBuf)); else playSfx(gunBuf); } }catch(e){}
+}
+function thud(){
+  const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+  o.type='square';o.frequency.value=90;g.gain.value=.12;
+  o.connect(g).connect(audioCtx.destination);
+  o.start();o.stop(audioCtx.currentTime+.12);
+}
+
+// Background music (loadable from raw GitHub URL) and persistent config
+let CONFIG = JSON.parse(localStorage.getItem('rr_cfg') || '{"musicOn":true,"musicVolume":0.15,"sfxVolume":0.18,"name":"Player","leaderboardType":"local","hardMode":false,"menuBg":"","cursor1":"","cursor2":"","cursorChoice":"default"}');
+const bgGain = audioCtx.createGain(); bgGain.gain.value = CONFIG.musicOn ? CONFIG.musicVolume : 0; bgGain.connect(audioCtx.destination);
+const sfxGain = audioCtx.createGain(); sfxGain.gain.value = CONFIG.sfxVolume || 0.18; sfxGain.connect(audioCtx.destination);
+// Global low-pass filter used to muffle music on pause/death
+const bgFilter = audioCtx.createBiquadFilter(); bgFilter.type = 'lowpass'; bgFilter.frequency.value = 22000; bgFilter.Q.value = 0.0001; bgFilter.connect(bgGain);
+const HARD_BOOST = 0.15; // increase BG volume when hard mode is on (15%)
+const MENU_BG_FACTOR = 0.25; // menu music quieter than gameplay
+// deferred autoplay / performance controls
+let menuAutoStartPending = false; // set when menu music should start after user gesture
+let frameTimes = []; let qualityFactor = 1.0; // adaptive quality for particles/shadows
+let PARTICLE_MAX = 350; // conservative default particle cap
+let lastPerfAdjust = performance.now();
+let frameCounter = 0;
+
+function setQualityFromAvg(avg){
+  if(avg>0.032) qualityFactor = 0.45;
+  else if(avg>0.02) qualityFactor = 0.75;
+  else qualityFactor = 1.0;
+  PARTICLE_MAX = qualityFactor===1 ? 600 : (qualityFactor>=0.75 ? 450 : 300);
+} 
+
+// music / sfx buffers
+let menuBuffers = [], normalBuffers = [], hardBuffers = [];
+let menuSource = null, gameSource = null;
+let selectionBuf = null, gunBuf = null, deathBuf = null;
+
+async function loadMusicList(urls){
+  const bufs = [];
+  for(const u of urls){
+    try{
+      const res = await fetch(u);
+      const ab = await res.arrayBuffer();
+      const b = await audioCtx.decodeAudioData(ab);
+      bufs.push(b);
+    }catch(err){ console.warn('music load failed', u, err); }
+  }
+  return bufs;
+}
+async function loadSfx(url){
+  try{
+    const res = await fetch(url);
+    const ab = await res.arrayBuffer();
+    return await audioCtx.decodeAudioData(ab);
+  }catch(err){ console.warn('sfx load failed', url, err); return null; }
+}
+function playBufferLoop(buffer){
+  if(!buffer) return null;
+  const src = audioCtx.createBufferSource();
+  src.buffer = buffer; src.loop = true; src.connect(bgFilter); src.start(0);
+  return src;
+} 
+async function loadBg(url){
+  try{
+    const res = await fetch(url);
+    const ab = await res.arrayBuffer();
+    const buf = await audioCtx.decodeAudioData(ab);
+    // add to normal and (if empty) menu pools so it can be used immediately
+    normalBuffers.push(buf);
+    if(menuBuffers.length===0) menuBuffers.push(buf);
+    return buf;
+  }catch(e){ console.warn('loadBg failed', url, e); throw e; }
+}
+function stopSource(s){ if(s){ try{s.stop();}catch(e){} try{s.disconnect();}catch(e){} }}
+
+function playMenuMusic(){
+  stopSource(menuSource); stopSource(gameSource); menuSource = null; gameSource = null;
+  if(menuBuffers.length>0 && CONFIG.musicOn){
+    menuSource = playBufferLoop(menuBuffers[Math.floor(Math.random()*menuBuffers.length)]);
+    bgGain.gain.value = CONFIG.musicOn ? CONFIG.musicVolume * MENU_BG_FACTOR : 0;
+  }
+} 
+let gameMusicLoading = false;
+async function loadGameMusic(){
+  if(gameMusicLoading) return;
+  gameMusicLoading = true;
+  try{
+    if(!normalBuffers || normalBuffers.length===0){
+      normalBuffers = await loadMusicList(NORMAL_MUSIC_URLS);
+    }
+    if(!hardBuffers || hardBuffers.length===0){
+      hardBuffers = await loadMusicList(HARD_MUSIC_URLS);
+    }
+    if((normalBuffers && normalBuffers.length) || (hardBuffers && hardBuffers.length)) toast('Game music loaded');
+  }catch(e){ console.warn('loadGameMusic failed', e); }
+  finally{ gameMusicLoading = false; }
+  // if we are in-game and still no gameSource, try to start music now
+  try{ if(state && state.alive && !state.paused) playGameMusic(); }catch(e){}
+}
+
+function playGameMusic(){
+  stopSource(menuSource); stopSource(gameSource); menuSource = null;
+  const pool = (CONFIG.hardMode && hardBuffers && hardBuffers.length>0) ? hardBuffers : (normalBuffers || []);
+  if(pool && pool.length>0 && CONFIG.musicOn){
+    gameSource = playBufferLoop(pool[Math.floor(Math.random()*pool.length)]);
+    const vol = Math.min(1, CONFIG.musicVolume + (CONFIG.hardMode?HARD_BOOST:0));
+    bgGain.gain.value = CONFIG.musicOn ? vol : 0;
+  }else{
+    // no game music available yet: start background loading and fallback to menu music
+    if(!gameMusicLoading) loadGameMusic();
+    if(menuBuffers && menuBuffers.length>0 && CONFIG.musicOn){
+      // play a menu buffer as a harmless fallback (quiet)
+      menuSource = playBufferLoop(menuBuffers[Math.floor(Math.random()*menuBuffers.length)]);
+      bgGain.gain.value = CONFIG.musicOn ? CONFIG.musicVolume * MENU_BG_FACTOR : 0;
+    }
+  }
+}
+
+// Pause music helpers: keep current track playing but much quieter while paused
+let prevBgVolumeForPause = null;
+const PAUSE_FACTOR = 0.25; // 25% of original volume when paused
+function pauseMusicQuietly(){
+  if(prevBgVolumeForPause === null){
+    prevBgVolumeForPause = bgGain.gain.value;
+    bgGain.gain.value = prevBgVolumeForPause * PAUSE_FACTOR;
+  }
+}
+function resumeMusicFromPause(){
+  if(prevBgVolumeForPause !== null){
+    bgGain.gain.value = prevBgVolumeForPause;
+    prevBgVolumeForPause = null;
+  }
+  try{ bgFilter.frequency.setValueAtTime(22000, audioCtx.currentTime); }catch(e){}
+}
+
+// Muffle + light glitch effect used on death
+function muffleDeathEffect(){
+  try{
+    // quiet the music like pause
+    pauseMusicQuietly();
+    // apply lowpass muffle
+    const prevFreq = bgFilter.frequency.value;
+    bgFilter.frequency.setValueAtTime(1200, audioCtx.currentTime);
+    // slight pitch-down then restore if gameSource exists
+    if(gameSource){
+      const origRate = gameSource.playbackRate && gameSource.playbackRate.value ? gameSource.playbackRate.value : 1;
+      try{ gameSource.playbackRate.setValueAtTime(origRate * 0.96, audioCtx.currentTime); }catch(e){}
+      setTimeout(()=>{
+        try{ if(gameSource) gameSource.playbackRate.setValueAtTime(origRate, audioCtx.currentTime); }catch(e){}
+        // keep the muffle until the user resumes or returns to menu; don't restore freq here
+      }, 700);
+    }
+  }catch(e){ console.warn('muffleDeathEffect failed', e); }
+} 
+function playSfx(buf){ if(!buf) return; try{ const s = audioCtx.createBufferSource(); s.buffer = buf; s.connect(sfxGain); s.start(0); }catch(e){console.warn('playSfx failed',e);} }
+
+function setMusicOn(on){ CONFIG.musicOn = on; localStorage.setItem('rr_cfg', JSON.stringify(CONFIG)); if(CONFIG.musicOn){ if(menuSource) bgGain.gain.value = CONFIG.musicVolume; else bgGain.gain.value = CONFIG.musicVolume; } else bgGain.gain.value = 0; }
+function setMusicVol(v){ CONFIG.musicVolume = v; localStorage.setItem('rr_cfg', JSON.stringify(CONFIG)); bgGain.gain.value = CONFIG.musicOn ? (CONFIG.hardMode ? Math.min(1, v+HARD_BOOST) : v) : 0; }
+
+// provided music & sfx raw URLs
+const MENU_MUSIC_URL = 'https://raw.githubusercontent.com/Orvlyn/html-game/main/Soft%20Orbit%20main%20menu.mp3';
+const NORMAL_MUSIC_URLS = [
+  'https://raw.githubusercontent.com/Orvlyn/html-game/main/Hyper%20Drift%20Loop%20bg%202.mp3',
+  'https://raw.githubusercontent.com/Orvlyn/html-game/main/Hyper%20Drift%20Loop%20bg.mp3',
+  'https://raw.githubusercontent.com/Orvlyn/html-game/main/Soft%20Orbit%20bg.mp3',
+  'https://raw.githubusercontent.com/Orvlyn/html-game/main/Summoner%E2%80%99s%20Late%20Queue.mp3'
+];
+const HARD_MUSIC_URLS = [
+  'https://raw.githubusercontent.com/Orvlyn/html-game/main/Chaotic%20Halo%20Loop%20bg%202%20rage.mp3',
+  'https://raw.githubusercontent.com/Orvlyn/html-game/main/Chaotic%20Halo%20Loop%20bg%20rage.mp3'
+];
+const SELECTION_URL = 'https://raw.githubusercontent.com/Orvlyn/html-game/main/selection.mp3';
+const GUN_URL = 'https://raw.githubusercontent.com/Orvlyn/html-game/main/gun.mp3';
+const DEATH_URL = 'https://raw.githubusercontent.com/Orvlyn/html-game/main/death.mp3';
+
+// Load everything in background
+async function loadAllAudio(){
+  try{
+    // load all music and SFX immediately
+    menuBuffers = await loadMusicList([MENU_MUSIC_URL]);
+    normalBuffers = await loadMusicList(NORMAL_MUSIC_URLS);
+    hardBuffers = await loadMusicList(HARD_MUSIC_URLS);
+    selectionBuf = await loadSfx(SELECTION_URL);
+    gunBuf = await loadSfx(GUN_URL);
+    deathBuf = await loadSfx(DEATH_URL);
+    if(menuBuffers.length) toast('Menu music loaded');
+    if(normalBuffers.length||hardBuffers.length) toast('Game music loaded');
+    if(selectionBuf) toast('SFX loaded');
+    // if menu currently visible, defer starting music until user gesture
+    if(document.getElementById('overlay').style.display==='flex') menuAutoStartPending = true; 
+  }catch(e){ console.warn('loadAllAudio error',e); toast('Audio load failed'); }
+}
+
+// Do NOT preload all audio on load (decoding many tracks can freeze the page). We will load essential SFX and menu music after the first user gesture.
+// loadAllAudio(); // disabled to avoid main-thread decoding
+
+
+
+function handleFirstGesture(){
+  // resume the audio context and start loading audio + apply cursor asynchronously
+  if(audioCtx.state==='suspended'){
+    audioCtx.resume().then(()=>{
+      try{ loadEssentialAudio(); }catch(e){}
+    }).catch(()=>{});
+  }else{
+    try{ loadEssentialAudio(); }catch(e){}
+  }
+  // apply cursor only on Save/Start/Resume to avoid blocking page load
+  window.removeEventListener('pointerdown', handleFirstGesture);
+  window.removeEventListener('keydown', handleFirstGesture);
+}
+
+
+// Cursor SVG handling
+const CURSOR_URLS = {
+  classic: 'https://raw.githubusercontent.com/Orvlyn/html-game/main/mouse%202.svg',
+  new: 'https://raw.githubusercontent.com/Orvlyn/html-game/main/mouse%201.svg'
+};
+const cursorSvgCache = {};
+const cursorDataCache = {};
+async function fetchCursorSvg(name){
+  const url = CURSOR_URLS[name]; if(!url) return null;
+  if(cursorSvgCache[url]) return cursorSvgCache[url];
+  try{
+    const res = await fetch(url, {mode:'cors'});
+    const text = await res.text();
+    cursorSvgCache[url]=text; return text;
+  }catch(e){ console.warn('cursor fetch failed', e); return null; }
+}
+function tintSvg(svgText, color){
+  try{
+    if(!svgText) return null;
+    // insert a style to override fills and strokes to chosen color
+    const res = svgText.replace(/<svg([^>]*)>/i, (m,g1)=>`<svg${g1}><style>*{fill:${color} !important; stroke:${color} !important}</style>`);
+    return res;
+  }catch(e){ return svgText; }
+}
+async function applyCursor(choice, size=32){
+  const key = `${choice}|${size}`;
+  // fast path: use cached PNG data URI if available
+  if(cursorDataCache[key]){
+    try{ const hotspot = Math.max(8, Math.min(32, Math.round(size/2))); canvas.style.cursor = `url(${cursorDataCache[key]}) ${hotspot} ${hotspot}, auto`; document.body.style.cursor = `url(${cursorDataCache[key]}) ${hotspot} ${hotspot}, auto`; return Promise.resolve(); }catch(e){}
+  }
+  try{
+    const svgText = await fetchCursorSvg(choice);
+    const baseSvg = svgText || `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${size/2}" cy="${size/2}" r="${Math.floor(size/2)-1}" fill="#00aaff"/></svg>`;
+    const svgData = 'data:image/svg+xml;utf8,' + encodeURIComponent(baseSvg);
+    // load svg into an image (with timeout) then draw to small canvas and convert to PNG
+    const img = new Image(); img.crossOrigin='anonymous';
+    const imgLoad = new Promise((resolve,reject)=>{
+      const to = setTimeout(()=>reject(new Error('cursor image load timeout')), 1500);
+      img.onload = ()=>{ clearTimeout(to); resolve(img); };
+      img.onerror = (e)=>{ clearTimeout(to); reject(e); };
+    });
+    img.src = svgData;
+    await imgLoad;
+    const s = Math.max(16, Math.min(64, size));
+    const oc = document.createElement('canvas'); oc.width = s; oc.height = s;
+    const octx = oc.getContext('2d'); octx.clearRect(0,0,s,s);
+    octx.drawImage(img, 0, 0, s, s);
+    const png = oc.toDataURL('image/png');
+    const hotspot = Math.max(8, Math.min(32, Math.round(size/2)));
+    const cursorValue = `url(${png}) ${hotspot} ${hotspot}, auto`;
+    try{ canvas.style.cursor = cursorValue; document.body.style.cursor = cursorValue; }catch(e){}
+    cursorDataCache[key] = png;
+    return Promise.resolve();
+  }catch(e){
+    // fallback: draw a simple colored circle as a PNG (fixed color)
+    try{
+      const s = Math.max(16, Math.min(64, size));
+      const oc = document.createElement('canvas'); oc.width = s; oc.height = s;
+      const octx = oc.getContext('2d'); octx.clearRect(0,0,s,s);
+      octx.fillStyle = '#00aaff'; octx.beginPath(); octx.arc(s/2,s/2,s/2 - 1,0,Math.PI*2); octx.fill();
+      const png = oc.toDataURL('image/png');
+      const hotspot = Math.max(8, Math.min(32, Math.round(size/2)));
+      const cursorValue = `url(${png}) ${hotspot} ${hotspot}, auto`;
+      try{ canvas.style.cursor = cursorValue; document.body.style.cursor = cursorValue; }catch(e){}
+      cursorDataCache[key] = png;
+      return Promise.resolve();
+    }catch(err){ console.warn('applyCursor failed', e, err); return Promise.resolve(); }
+  }
+}
+function updateCursorPreview(choice, size=32){
+  const preview = document.getElementById('cursorPreview'); if(!preview) return;
+  fetchCursorSvg(choice).then(svgText=>{
+    if(svgText){ preview.style.backgroundImage = `url('data:image/svg+xml;utf8,${encodeURIComponent(svgText)}')`; preview.style.backgroundSize = 'contain'; preview.style.backgroundRepeat='no-repeat'; preview.style.backgroundPosition='center'; }
+  }).catch(()=>{});
+}
+// live preview listeners for cursor controls
+const cursorChoiceEl = document.getElementById('cursorChoice'); const cursorSizeEl = document.getElementById('cursorSize');
+if(cursorChoiceEl) cursorChoiceEl.addEventListener('change', ()=>updateCursorPreview(cursorChoiceEl.value, Number(cursorSizeEl.value)));
+if(cursorSizeEl) cursorSizeEl.addEventListener('input', ()=>updateCursorPreview(cursorChoiceEl.value, Number(cursorSizeEl.value)));
+
+
+// Local leaderboard (stored in localStorage) and UI
+function loadLeaderboard(){ return JSON.parse(localStorage.getItem('rr_lboard')||'[]'); }
+function saveLeaderboard(list){ localStorage.setItem('rr_lboard', JSON.stringify(list)); }
+function submitScore(score){
+  const name = CONFIG.name||'Player';
+  const list = loadLeaderboard();
+  list.push({name,score,hard:!!CONFIG.hardMode,ts:Date.now()});
+  list.sort((a,b)=>b.score-a.score);
+  saveLeaderboard(list.slice(0,100));
+  renderLeaderboard();
+  toast('Score submitted to local leaderboard');
+} 
+function renderLeaderboard(){
+  const list = loadLeaderboard();
+  const ol = document.getElementById('leaderboardList');
+  if(!ol) return;
+  ol.innerHTML = '';
+  list.slice(0,10).forEach((e,i)=>{
+    const li = document.createElement('li');
+    const mode = e.hard ? ' (Hard)' : '';
+    li.textContent = `${i+1}. ${e.name} — ${e.score}${mode}`;
+    ol.appendChild(li);
+  });
+}
+
+// Panel view helper
+let CURRENT_VIEW = null;
+let PREV_VIEW = null;
+function showPanel(name){
+  document.querySelectorAll('#panel .view').forEach(v=>v.style.display='none');
+  const el = document.getElementById(name);
+  if(el) el.style.display = 'block';
+  document.getElementById('overlay').style.display='flex';
+  CURRENT_VIEW = name;
+  if(name==='menuView'){
+    // stop any game activity and silence game music
+    state.alive = false; state.paused = false;
+    stopSource(gameSource); gameSource = null;
+    prevBgVolumeForPause = null; // clear any paused volume
+    bgFilter.frequency.setValueAtTime(22000, audioCtx.currentTime); // clear muffling
+    playMenuMusic(); const t = document.getElementById('toggleHard'); if(t) t.textContent = CONFIG.hardMode ? 'On' : 'Off';
+    // apply menu background if configured
+    const card = document.querySelector('.menu-card'); if(card){ if(CONFIG.menuBg){ card.style.backgroundImage = `url(${CONFIG.menuBg})`; card.style.backgroundSize = 'cover'; card.style.backgroundPosition = 'center'; } else { card.style.backgroundImage=''; } }
+  }
+  if(name==='pauseView'){
+    // ensure music remains quiet while paused (helps when returning from Settings)
+    pauseMusicQuietly();
+    const t = document.getElementById('toggleHard'); if(t) t.textContent = CONFIG.hardMode ? 'On' : 'Off';
+  }
+} 
+
+// UI wiring (buttons)
+document.addEventListener('click', async function(e){
+  // play selection SFX on menu buttons
+  if(e.target.classList && e.target.classList.contains('menuButton')){
+    try{
+      if(selectionBuf){
+        if(audioCtx.state==='suspended') await audioCtx.resume();
+        playSfx(selectionBuf);
+      }
+      // if the menu is visible and music isn't playing yet, start it after a user gesture
+      if(document.getElementById('overlay').style.display==='flex' && CURRENT_VIEW==='menuView' && !menuSource){
+        if(audioCtx.state==='suspended') await audioCtx.resume();
+        playMenuMusic();
+      }
+    }catch(e){}
+  }
+
+  if(e.target.id==='startBtn'){
+    await (audioCtx.state==='suspended' ? audioCtx.resume() : Promise.resolve());
+    overlay(false);
+    reset(); state.alive = true; state.paused = false;
+    // stop menu music and start game music
+    stopSource(menuSource); menuSource = null;
+    // ensure cursor applied in-game
+    try{ applyCursor(CONFIG.cursorChoice||'classic', CONFIG.cursorSize||32); }catch(e){}
+    if(CONFIG.musicOn){ playGameMusic(); }
+    document.getElementById('score').textContent=0;
+  }else if(e.target.id==='showLeaderboard'){ showPanel('leaderboardView'); renderLeaderboard(); }
+  else if(e.target.id==='backFromLeaderboard'){ showPanel('menuView'); }
+  else if(e.target.id==='showSettings' || e.target.id==='showSettingsPause'){ PREV_VIEW = CURRENT_VIEW; showPanel('settingsView'); document.getElementById('musicVol').value = CONFIG.musicVolume; document.getElementById('nameInput').value = CONFIG.name||'Player'; document.getElementById('sfxVol').value = CONFIG.sfxVolume || 0.18; document.getElementById('menuBg').value = CONFIG.menuBg || ''; document.getElementById('cursorChoice').value = CONFIG.cursorChoice || 'classic'; document.getElementById('cursorSize').value = CONFIG.cursorSize || 32; if(CONFIG.cursorChoice) updateCursorPreview(CONFIG.cursorChoice, CONFIG.cursorSize || 32); }
+  else if(e.target.id==='saveSettings'){ CONFIG.name = document.getElementById('nameInput').value || 'Player'; CONFIG.sfxVolume = Number(document.getElementById('sfxVol').value) || CONFIG.sfxVolume; CONFIG.musicVolume = Number(document.getElementById('musicVol').value) || CONFIG.musicVolume; CONFIG.menuBg = document.getElementById('menuBg').value || CONFIG.menuBg; CONFIG.cursorChoice = document.getElementById('cursorChoice').value || CONFIG.cursorChoice; CONFIG.cursorSize = Number(document.getElementById('cursorSize').value) || CONFIG.cursorSize || 32; localStorage.setItem('rr_cfg', JSON.stringify(CONFIG)); sfxGain.gain.value = CONFIG.sfxVolume; setMusicOn(CONFIG.musicOn); setMusicVol(CONFIG.musicVolume);
+      // apply cursor selection immediately
+      applyCursor(CONFIG.cursorChoice, CONFIG.cursorSize).then(()=>{}).catch(()=>{});
+      toast('Settings saved');
+      // close popup and return to previous view if any
+      if(typeof PREV_VIEW !== 'undefined' && PREV_VIEW){ showPanel(PREV_VIEW); if(PREV_VIEW === 'pauseView') { pauseMusicQuietly(); state.paused = true; } PREV_VIEW = null; } else { overlay(false); } }
+  else if(e.target.id==='toggleMusic'){ setMusicOn(!CONFIG.musicOn); toast('Music '+ (CONFIG.musicOn?'enabled':'muted')); }
+  else if(e.target.id==='toggleHard'){ CONFIG.hardMode = !CONFIG.hardMode; localStorage.setItem('rr_cfg', JSON.stringify(CONFIG)); e.target.textContent = CONFIG.hardMode ? 'On' : 'Off'; toast('Hard mode '+(CONFIG.hardMode?'enabled':'disabled')); if(document.getElementById('overlay').style.display!=='flex') playGameMusic(); }
+  else if(e.target.id==='clearLeaderboard'){ localStorage.removeItem('rr_lboard'); renderLeaderboard(); toast('Leaderboard cleared'); }
+  else if(e.target.id==='toLeaderboard'){ showPanel('leaderboardView'); renderLeaderboard(); }
+});
+
+// wire restart button (already exists)
+document.getElementById('restart').onclick = ()=>{ overlay(false); reset(); // ensure music is back to normal on a fresh run
+    resumeMusicFromPause(); try{ bgFilter.frequency.setValueAtTime(22000, audioCtx.currentTime); }catch(e){} if(CONFIG.musicOn){ playGameMusic(); } }; 
+// pause/resume and return to main menu buttons
+const resumeBtn = document.getElementById('resumeBtn'); if(resumeBtn) resumeBtn.onclick = ()=>{ state.paused=false; if(state.pauseStart){ state.start += performance.now() - state.pauseStart; state.pauseStart = null; } overlay(false); resumeMusicFromPause(); try{ applyCursor(CONFIG.cursorChoice||'classic', CONFIG.cursorSize||32); }catch(e){} if(!gameSource && CONFIG.musicOn) playGameMusic(); };
+const returnMainBtn = document.getElementById('returnMainBtn'); if(returnMainBtn) returnMainBtn.onclick = ()=>{ state.paused=false; prevBgVolumeForPause = null; overlay(false); reset(); showPanel('menuView'); };
+
+const rand = (a,b)=>a+Math.random()*(b-a); 
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+
+// Simple particle system for neon/glow effects
+const particles = [];
+function spawnParticles(x,y,opts={}){
+  let count = opts.count||8;
+  // scale count by quality and clamp to cap
+  count = Math.max(1, Math.round(count * qualityFactor));
+  const avail = Math.max(0, PARTICLE_MAX - particles.length);
+  if(avail<=0) return;
+  if(count>avail) count = avail;
+  for(let i=0;i<count;i++){
+    const ang = (opts.angle!==undefined) ? (opts.angle + (Math.random()-0.5)*(opts.spread||1)) : (Math.random()*Math.PI*2);
+    const sp = (opts.speed || (10 + Math.random()*120));
+    const vx = Math.cos(ang) * sp * (opts.speedMult||1);
+    const vy = Math.sin(ang) * sp * (opts.speedMult||1);
+    const life = (opts.life || (0.4 + Math.random()*0.9));
+    const size = (opts.size || (1 + Math.random()*3));
+    const col = opts.color || (['#00eaff','#7cffc4','#ff7bda'][Math.floor(Math.random()*3)]);
+    particles.push({x,y,vx,vy,life,maxLife:life,size,color:col,fade:opts.fade!==false});
+  }
+  // aggressive prune if over cap
+  if(particles.length > PARTICLE_MAX){
+    particles.splice(0, particles.length - PARTICLE_MAX);
+  }
+} 
+function updateParticles(dt){
+  // prune a bit if we've somehow exceeded cap significantly
+  if(particles.length > Math.ceil(PARTICLE_MAX * 1.05)){
+    const removeCount = Math.min(200, particles.length - Math.ceil(PARTICLE_MAX * 0.9));
+    particles.splice(0, removeCount);
+  }
+  for(let i=particles.length-1;i>=0;i--){
+    const p = particles[i];
+    p.life -= dt;
+    if(p.life<=0){ particles.splice(i,1); continue; }
+    p.x += p.vx*dt; p.y += p.vy*dt;
+    p.vx *= 0.98; p.vy *= 0.98; // slightly stronger damping to reduce motion math cost
+  }
+}
+function drawParticles(ctx){
+  if(particles.length===0) return;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  // sample rate depends on quality (skip particles when low quality)
+  const step = qualityFactor>=0.9 ? 1 : (qualityFactor>=0.7 ? 2 : 3);
+  ctx.shadowBlur = qualityFactor>=0.8 ? 8 : 0;
+  for(let i=0;i<particles.length;i+=step){
+    const p = particles[i];
+    const t = Math.max(0, p.life / p.maxLife);
+    ctx.globalAlpha = p.fade ? Math.min(1, t) : 1;
+    ctx.fillStyle = p.color;
+    const s = p.size * (0.5 + 0.5 * t) * Math.max(0.6, qualityFactor);
+    ctx.beginPath(); ctx.arc(p.x, p.y, s, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha = 1; ctx.restore();
+}
+
+let state; 
+const BEST = JSON.parse(localStorage.getItem('rr_best')||'{}');
+
+function toast(t){
+  const d=document.createElement('div');d.className='toast';d.textContent=t;
+  document.getElementById('toast').appendChild(d);
+  setTimeout(()=>d.remove(),900);
+}
+
+function reset(){
+  state={
+    t:0, dt:0, last:performance.now(),
+    player:{x:canvas.width/DPR/2,y:canvas.height/DPR/2, r:10, vx:0, vy:0, speed:280, hold:false, target:null},
+    shots:[],
+    telegraphs:[],
+    score:0,
+    cleanDodges:0, panic:false,
+    hits:0, dodges:0, wasted:0, moved:0,
+    diff:1, alive:true, paused:false, start:performance.now(), pauseStart:null,
+    cosmetic:{trailHue:Math.floor(rand(0,360)), flash:0, shake:0}
+  };
+  overlay(false);
+} 
+reset();
+
+canvas.addEventListener('contextmenu',e=>e.preventDefault());
+// pointer-based movement: set target relative to canvas and set immediate velocity so clicks feel responsive
+function setPlayerTarget(x,y){
+  const p = state.player;
+  p.target = {x,y};
+  if(!p.hold){
+    const dx = p.target.x - p.x, dy = p.target.y - p.y; const d = Math.hypot(dx,dy);
+    if(d>2){ const v = p.speed; p.vx = dx/d * v; p.vy = dy/d * v; } else { p.target = null; p.vx = 0; p.vy = 0; }
+  }
+}
+function eventToCanvasPos(e){ const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+canvas.addEventListener('pointerdown', e=>{ const pos = eventToCanvasPos(e); setPlayerTarget(pos.x,pos.y); try{ canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId); }catch(err){} e.preventDefault(); });
+canvas.addEventListener('pointermove', e=>{ if(e.buttons){ const pos = eventToCanvasPos(e); setPlayerTarget(pos.x,pos.y); } });
+canvas.addEventListener('pointerup', e=>{ try{ canvas.releasePointerCapture && canvas.releasePointerCapture(e.pointerId); }catch(err){} });
+addEventListener('keydown',e=>{
+  if(e.key==='s'||e.key==='S'){state.player.target=null;}
+  if(e.key==='h'||e.key==='H'){state.player.hold=!state.player.hold;}
+  if(e.key==='Escape'){
+    // Toggle pause when playing
+    if(state.alive && !state.paused && document.getElementById('overlay').style.display!=='flex'){
+      state.paused = true; state.pauseStart = performance.now(); overlay(true); showPanel('pauseView'); pauseMusicQuietly();
+      try{ if(selectionBuf){ if(audioCtx.state==='suspended') audioCtx.resume().then(()=>playSfx(selectionBuf)); else playSfx(selectionBuf); } }catch(e){}
+    }else if(state.paused && CURRENT_VIEW==='pauseView'){
+      // resume
+      state.paused = false; if(state.pauseStart){ state.start += performance.now() - state.pauseStart; state.pauseStart = null; }
+      overlay(false); resumeMusicFromPause(); if(!gameSource && CONFIG.musicOn) playGameMusic();
+      try{ if(selectionBuf){ if(audioCtx.state==='suspended') audioCtx.resume().then(()=>playSfx(selectionBuf)); else playSfx(selectionBuf); } }catch(e){}
+    }else{
+      // otherwise open main menu
+      prevBgVolumeForPause = null; overlay(true); showPanel('menuView');
+      try{ if(selectionBuf){ if(audioCtx.state==='suspended') audioCtx.resume().then(()=>playSfx(selectionBuf)); else playSfx(selectionBuf); } }catch(e){}
+    }
+  }
+}); 
+function overlay(on){
+  document.getElementById('overlay').style.display=on?'flex':'none';
+}
+
+function spawn(){
+  const W=canvas.width/DPR,H=canvas.height/DPR;
+  const types=['line','circle','cone','delay'];
+  const type=types[Math.floor(Math.random()*types.length)];
+  const wind=rand(.5,Math.max(.15, .6/state.diff));
+  const start={x:rand(0,W),y:rand(0,H)};
+  if(type==='line'){
+    const ang=Math.atan2(state.player.y-start.y,state.player.x-start.x);
+    state.telegraphs.push({type, start, ang, wind, t:0, w:6});
+  }else if(type==='circle'){
+    state.telegraphs.push({type, pos:{x:rand(0,W),y:rand(0,H)}, r:rand(40,80), wind, t:0});
+  }else if(type==='cone'){
+    const ang=Math.atan2(state.player.y-start.y,state.player.x-start.x);
+    state.telegraphs.push({type, start, ang, spread:.5, len:220, wind, t:0});
+  }else{
+    state.telegraphs.push({type, pos:{x:rand(0,W),y:rand(0,H)}, r:rand(35,70), wind, t:0});
+  }
+  beep(800,.05,'sine',.04);
+}
+
+function update(dt){
+  updateParticles(dt);
+  const p=state.player;
+  if(p.target && !p.hold){
+    const dx=p.target.x-p.x, dy=p.target.y-p.y;
+    const d=Math.hypot(dx,dy);
+    if(d>2){
+      const v=p.speed;
+      p.vx=dx/d*v; p.vy=dy/d*v;
+    }else p.target=null;
+  }else{p.vx=0;p.vy=0;}
+  p.x+=p.vx*dt; p.y+=p.vy*dt;
+  state.moved+=Math.hypot(p.vx*dt,p.vy*dt);
+
+  state.telegraphs.forEach(tg=>{
+    tg.t+=dt;
+    if(tg.t>=tg.wind){
+      if(tg.type==='line'){
+        state.shots.push({type:'line', x:tg.start.x,y:tg.start.y, ang:tg.ang, spd:520*state.diff, w:8});
+        // bright burst when laser launches (smaller burst to reduce CPU)
+        spawnParticles(tg.start.x, tg.start.y, {count:6, speed:100, size:1.2, color:'#00eaff', life:0.36});
+      }else if(tg.type==='circle'){
+        // circle becomes an explosive orb (smaller burst for performance)
+        state.shots.push({type:'circle', x:tg.pos.x,y:tg.pos.y, r:tg.r, life:.35, maxLife:0.35});
+        spawnParticles(tg.pos.x, tg.pos.y, {count:14, speed:120, size:1.6, color:'#ff7bda', life:0.75});
+      }else if(tg.type==='cone'){
+        state.shots.push({type:'cone', x:tg.start.x,y:tg.start.y, ang:tg.ang, spread:tg.spread, len:tg.len});
+        spawnParticles(tg.start.x + Math.cos(tg.ang)*20, tg.start.y + Math.sin(tg.ang)*20, {count:10, angle:tg.ang, spread:tg.spread*1.2, speed:100, size:1.2, color:'#ffb86b', life:0.5});
+      }else{
+        state.shots.push({type:'delay', x:tg.pos.x,y:tg.pos.y, r:tg.r, life:.2});
+        spawnParticles(tg.pos.x, tg.pos.y, {count:6, speed:36, size:1.0, color:'#7cffc4', life:0.45});
+      }
+      swoosh();
+      tg.dead=true;
+    }
+  });
+  state.telegraphs=state.telegraphs.filter(t=>!t.dead);
+
+  state.shots.forEach(s=>{
+    if(s.type==='line'){
+      s.x+=Math.cos(s.ang)*s.spd*dt;
+      s.y+=Math.sin(s.ang)*s.spd*dt;
+      // neon trail
+      // trail spawn probability respects quality factor to avoid overload on slow devices
+      // trail spawn probability respects quality factor and is very low on poor perf
+      if(qualityFactor>0.85 && Math.random() < 0.12 * qualityFactor) spawnParticles(s.x - Math.cos(s.ang)*6, s.y - Math.sin(s.ang)*6, {count:1, speed:30, size:1, color:'#00eaff', life:0.22});
+    }else{
+      s.life-=dt;
+      if(s.type==='delay'){
+        if(Math.random()<0.18) spawnParticles(s.x + rand(-6,6), s.y + rand(-6,6), {count:1, speed:8, size:1, color:'#ff7bda', life:0.4});
+      }
+    }
+  });
+  state.shots=state.shots.filter(s=>s.type==='line'||s.life>0);
+
+  // collisions
+  state.shots.forEach(s=>{
+    let hit=false;
+    if(s.type==='line'){
+      hit = dist({x:s.x,y:s.y},p)<p.r+6;
+    }else if(s.type==='circle'||s.type==='delay'){
+      hit = dist({x:s.x,y:s.y},p)<s.r;
+    }else if(s.type==='cone'){
+      const dx=p.x-s.x, dy=p.y-s.y;
+      const ang=Math.atan2(dy,dx);
+      const da=Math.abs(Math.atan2(Math.sin(ang-s.ang),Math.cos(ang-s.ang)));
+      hit = da<s.spread && Math.hypot(dx,dy)<s.len;
+    }
+    if(hit){
+      thud(); state.hits++; state.alive=false;
+      end();
+    }
+  });
+
+  // scoring
+  state.score+=dt*10; 
+
+  // spawn rate
+  if(Math.random()<dt*(.6+state.diff)) spawn();
+  state.diff=1+state.score/400;
+
+}
+
+function end(){
+  try{ if(deathBuf){ if(audioCtx.state==='suspended') audioCtx.resume().then(()=>playSfx(deathBuf)); else playSfx(deathBuf); } }catch(e){}
+  // apply muffled, quiet death ambience
+  try{ muffleDeathEffect(); }catch(e){}
+  const dur=(performance.now()-state.start)/1000;
+  const dodgePct = Math.round((state.dodges/Math.max(1,state.dodges+state.hits))*100);
+  const stats=`
+  Time Survived: ${dur.toFixed(1)}s<br>
+  Dodge %: ${dodgePct}%<br>
+  Score: ${Math.floor(state.score)}
+  `; 
+  document.getElementById('stats').innerHTML=stats;
+  BEST.score=Math.max(BEST.score||0,Math.floor(state.score));
+  localStorage.setItem('rr_best',JSON.stringify(BEST));
+  // auto-submit to local leaderboard and show end panel
+  try{ submitScore(Math.floor(state.score)); }catch(e){}
+  overlay(true);
+  showPanel('endView');
+}  
+
+document.getElementById('restart').onclick=()=>{ overlay(false); reset(); resumeMusicFromPause(); try{ bgFilter.frequency.setValueAtTime(22000, audioCtx.currentTime); }catch(e){} if(CONFIG.musicOn){ playGameMusic(); } }; 
+
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  // telegraphs
+  ctx.save();
+  ctx.strokeStyle='#ff4d4d';ctx.lineWidth=2;
+  state.telegraphs.forEach(tg=>{
+    const a=clamp(tg.t/tg.wind,0,1);
+    ctx.globalAlpha=.3+.7*a;
+    if(tg.type==='line'){
+      ctx.beginPath();
+      ctx.moveTo(tg.start.x,tg.start.y);
+      ctx.lineTo(tg.start.x+Math.cos(tg.ang)*800, tg.start.y+Math.sin(tg.ang)*800);
+      ctx.stroke();
+    }else if(tg.type==='circle'||tg.type==='delay'){
+      ctx.beginPath();ctx.arc(tg.pos.x,tg.pos.y,tg.r*a,0,Math.PI*2);ctx.stroke();
+    }else if(tg.type==='cone'){
+      ctx.beginPath();
+      ctx.moveTo(tg.start.x,tg.start.y);
+      ctx.arc(tg.start.x,tg.start.y,tg.len, tg.ang-tg.spread*a, tg.ang+tg.spread*a);
+      ctx.closePath();ctx.stroke();
+    }
+  });
+  ctx.restore();
+
+  // shots (neon beams, orbs, cones)
+  state.shots.forEach(s=>{
+    if(s.type==='line'){
+      ctx.save(); ctx.globalCompositeOperation='lighter';
+      const len = 20 + Math.min(80, s.spd/6);
+      const x2 = s.x - Math.cos(s.ang)*len, y2 = s.y - Math.sin(s.ang)*len;
+      // light-weight outer glow
+      ctx.strokeStyle = `rgba(0,210,255,${0.18 * qualityFactor})`; ctx.lineWidth = Math.max(3, Math.round(6 * qualityFactor)); ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(x2,y2); ctx.lineTo(s.x,s.y); ctx.stroke();
+      // inner bright core
+      ctx.strokeStyle = `rgba(255,255,255,${0.9 * qualityFactor})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x2 + Math.cos(s.ang)*6, y2 + Math.sin(s.ang)*6); ctx.lineTo(s.x, s.y); ctx.stroke();
+      // small head
+      ctx.fillStyle='white'; ctx.beginPath(); ctx.arc(s.x,s.y,Math.max(2, Math.round(2.6 * qualityFactor)),0,Math.PI*2); ctx.fill();
+      ctx.restore();
+    }else if(s.type==='circle' || s.type==='delay'){
+      ctx.save(); ctx.globalCompositeOperation='lighter';
+      const life = s.life || 0; const max = s.maxLife || 0.25; const t = Math.max(0, Math.min(1, life/max));
+        // glowing orb
+      if(qualityFactor < 0.7){
+        ctx.fillStyle = `rgba(255,160,220,${0.7*t})`; ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2); ctx.fill();
+      }else{
+        const rg = ctx.createRadialGradient(s.x,s.y,0,s.x,s.y,s.r*1.2);
+        rg.addColorStop(0, 'rgba(255,180,255,'+ (0.9*t) +')');
+        rg.addColorStop(0.6, 'rgba(160,30,200,'+ (0.6*t) +')');
+        rg.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = rg; ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2); ctx.fill();
+        // expanding ring
+        ctx.strokeStyle = `rgba(255,200,255,${0.9*t})`; ctx.lineWidth = 6 * (0.6 + 0.4 * t);
+        ctx.beginPath(); ctx.arc(s.x,s.y,s.r * (1 + 0.3*(1-t)), 0, Math.PI*2); ctx.stroke();
+      }
+      ctx.restore();
+    }else if(s.type==='cone'){
+      ctx.save(); ctx.globalCompositeOperation='lighter'; ctx.fillStyle='rgba(255,185,100,0.12)'; ctx.beginPath(); ctx.moveTo(s.x,s.y); ctx.arc(s.x,s.y,s.len, s.ang-s.spread, s.ang+s.spread); ctx.closePath(); ctx.fill(); ctx.restore();
+    }
+  });
+
+  // particles (glow/trails)
+  drawParticles(ctx);
+
+  // player (glowing core + soft aura)
+  ctx.save(); ctx.globalCompositeOperation='lighter';
+  const px = state.player.x, py = state.player.y, pr = state.player.r;
+  const pg = ctx.createRadialGradient(px,py,0,px,py,pr*2.5);
+  pg.addColorStop(0,'rgba(255,255,255,1)'); pg.addColorStop(0.25,'rgba(124,255,196,0.9)'); pg.addColorStop(1,'rgba(12,25,30,0)');
+  ctx.fillStyle = pg; ctx.beginPath(); ctx.arc(px,py,pr*1.6,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#7cffc4'; ctx.beginPath(); ctx.arc(px,py,pr,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  document.getElementById('score').textContent=Math.floor(state.score);
+  // update timer (freeze if paused)
+  let elapsed = 0;
+  if(state.start){
+    if(state.pauseStart) elapsed = (state.pauseStart - state.start)/1000;
+    else elapsed = (performance.now() - state.start)/1000;
+  }
+  document.getElementById('timer').textContent = elapsed.toFixed(2); 
+}
+
+function loop(now){
+  const dt=Math.min(.033,(now-state.last)/1000); state.last=now;
+  frameCounter++;
+  // record frame times for an adaptive quality sampler
+  frameTimes.push(dt); if(frameTimes.length>90) frameTimes.shift();
+  // periodically compute average and adjust quality
+  if(performance.now() - lastPerfAdjust > 900){
+    const avg = frameTimes.reduce((a,b)=>a+b,0) / Math.max(1, frameTimes.length);
+    setQualityFromAvg(avg);
+    lastPerfAdjust = performance.now();
+    // prune particles if we're over cap
+    if(particles.length > PARTICLE_MAX){
+      particles.splice(0, particles.length - PARTICLE_MAX);
+    }
+    // update debug perf panel
+    try{ const perfEl = document.getElementById('perfInfo'); if(perfEl){ perfEl.textContent = `${Math.round(1/avg)} FPS · particles:${particles.length} · quality:${Math.round(qualityFactor*100)}%`; } }catch(e){}
+  }
+
+  // only update heavy particle simulation on every Nth frame depending on quality
+  const particleUpdateSkip = qualityFactor < 0.55 ? 3 : (qualityFactor < 0.8 ? 2 : 1);
+  if(state.alive && !state.paused){
+    update(dt);
+    if(frameCounter % particleUpdateSkip === 0) updateParticles(dt);
+  }
+  // draw always, but drawParticles will sample/skip internally to reduce work
+  draw();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+// add perf info overlay for debugging
+(function(){
+  const d = document.createElement('div'); d.id='perfInfo'; d.style.position='fixed'; d.style.right='8px'; d.style.top='8px'; d.style.padding='6px 8px'; d.style.background='rgba(8,12,18,0.6)'; d.style.color='#9ff'; d.style.fontSize='12px'; d.style.borderRadius='6px'; d.style.zIndex='9999'; d.style.pointerEvents='none'; document.body.appendChild(d);
+})();
+
+// Show the menu on load
+overlay(true); showPanel('menuView');
+// Resume audio on first user gesture (to satisfy browser autoplay policies) and start pending menu music
+async function loadEssentialAudio(){
+  try{
+    if(!selectionBuf) selectionBuf = await loadSfx(SELECTION_URL);
+    if(!gunBuf) gunBuf = await loadSfx(GUN_URL);
+    if(!deathBuf) deathBuf = await loadSfx(DEATH_URL);
+    if(!menuBuffers || menuBuffers.length===0){ menuBuffers = await loadMusicList([MENU_MUSIC_URL]); }
+    if(selectionBuf) toast('SFX loaded');
+    if(menuBuffers && menuBuffers.length) toast('Menu music loaded');
+    // if menu was waiting, start it now
+    if(menuAutoStartPending){ menuAutoStartPending = false; if(document.getElementById('overlay').style.display==='flex') playMenuMusic(); }
+  }catch(e){ console.warn('loadEssentialAudio failed', e); }
+}
+
+function resumeAudioOnGesture(){
+  try{ audioCtx.resume().then(()=>{ try{ loadEssentialAudio(); }catch(e){} if(menuAutoStartPending){ menuAutoStartPending=false; if(document.getElementById('overlay').style.display==='flex') playMenuMusic(); } }); }catch(e){}
+}
+window.addEventListener('pointerdown', resumeAudioOnGesture, {once:true}); window.addEventListener('keydown', resumeAudioOnGesture, {once:true});
+
+// To load your raw GitHub audio, call the loadBg(url) function with the raw file URL.
+// Example: loadBg('https://raw.githubusercontent.com/yourname/repo/branch/path/track.mp3');
+// Once you call loadBg(...) the track will be decoded and looped at configured volume.
+// Loading the music you provided (raw GitHub):
+loadBg('https://raw.githubusercontent.com/Orvlyn/html-game/main/Summoner%E2%80%99s%20Late%20Queue.mp3').then(()=>{ toast('Music loaded'); }).catch(()=>{ toast('Music load failed'); });
+</script>
+</body>
+</html>
